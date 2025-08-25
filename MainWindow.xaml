@@ -38,6 +38,7 @@
                 <Button Content="最善手を計算" Click="OnCalcBest" Margin="0,0,6,0"/>
                 <Button Content="相手の次手予測" Click="OnPredictOpp" Margin="0,0,6,0"/>
                 <Button Content="HUD表示" Click="OnShowHud"/>
+                <Button Content="画面から読取" Click="OnReadFromScreen"/>
             </StackPanel>
 
             <TextBlock Text="結果" FontWeight="Bold"/>
@@ -45,6 +46,9 @@
 
             <TextBlock Text="自分の成立役" FontWeight="Bold" Margin="0,12,0,0"/>
             <ListBox x:Name="YakuList" Height="120"/>
+            <TextBlock Text="配札役（手札）" FontWeight="Bold" Margin="0,12,0,0"/>
+            <ListBox x:Name="DealYakuList" Height="80"/>
+
         </StackPanel>
     </Grid>
 </Window>
