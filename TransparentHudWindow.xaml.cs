@@ -1,0 +1,7 @@
+using System.Linq; using System.Runtime.InteropServices; using System.Windows; using System.Windows.Controls.Primitives; using HanafudaAdvisor.Wpf.Models;
+namespace HanafudaAdvisor.Wpf { public partial class TransparentHudWindow:Window{ public TransparentHudWindow(){InitializeComponent();}
+ public void UpdateFromState(GameState g, Advisor advisor){ var top3 = advisor.BestMoves(g,1000).OrderByDescending(x=>x.Ev).Take(3).Select(s=>$"{s.Play}  EV={s.Ev:F2}"); TopMoves.ItemsSource = top3.ToList(); }
+ private void OnClose(object s, RoutedEventArgs e)=>Close();
+ private void OnClickThrough(object s, RoutedEventArgs e){ bool enable=(s as ToggleButton)!.IsChecked==true; ToggleClickThrough(enable);} const int GWL_EXSTYLE=-20; const int WS_EX_TRANSPARENT=0x00000020; const int WS_EX_LAYERED=0x00080000;
+ [DllImport("user32.dll")] static extern int GetWindowLong(System.IntPtr hWnd,int nIndex); [DllImport("user32.dll")] static extern int SetWindowLong(System.IntPtr hWnd,int nIndex,int dwNewLong);
+ private void ToggleClickThrough(bool enable){ var hwnd=new System.Windows.Interop.WindowInteropHelper(this).Handle; int ex=GetWindowLong(hwnd,GWL_EXSTYLE); if(enable) ex|=WS_EX_LAYERED|WS_EX_TRANSPARENT; else ex&=~(WS_EX_TRANSPARENT); SetWindowLong(hwnd,GWL_EXSTYLE,ex);} } }

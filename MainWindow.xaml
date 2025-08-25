@@ -1,0 +1,51 @@
+﻿<Window x:Class="HanafudaAdvisor.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hanafuda Advisor" Height="560" Width="860">
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="3*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- My Hand -->
+        <GroupBox Header="手札(8)" Grid.Column="0" Margin="6">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,6">
+                    <Button Content="追加" Click="OnAddHand" Margin="0,0,6,0"/>
+                    <Button Content="削除" Click="OnRemoveHand"/>
+                </StackPanel>
+                <ListBox x:Name="HandList"/>
+            </DockPanel>
+        </GroupBox>
+
+        <!-- Field -->
+        <GroupBox Header="場(8)" Grid.Column="1" Margin="6">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,6">
+                    <Button Content="追加" Click="OnAddField" Margin="0,0,6,0"/>
+                    <Button Content="削除" Click="OnRemoveField"/>
+                </StackPanel>
+                <ListBox x:Name="FieldList"/>
+            </DockPanel>
+        </GroupBox>
+
+        <!-- Actions & Results -->
+        <StackPanel Grid.Column="2" Margin="6">
+            <TextBlock Text="操作" FontWeight="Bold"/>
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,6">
+                <Button Content="最善手を計算" Click="OnCalcBest" Margin="0,0,6,0"/>
+                <Button Content="相手の次手予測" Click="OnPredictOpp" Margin="0,0,6,0"/>
+                <Button Content="HUD表示" Click="OnShowHud"/>
+            </StackPanel>
+
+            <TextBlock Text="結果" FontWeight="Bold"/>
+            <ListBox x:Name="ResultList" Height="260"/>
+
+            <TextBlock Text="自分の成立役" FontWeight="Bold" Margin="0,12,0,0"/>
+            <ListBox x:Name="YakuList" Height="120"/>
+        </StackPanel>
+    </Grid>
+</Window>
+
