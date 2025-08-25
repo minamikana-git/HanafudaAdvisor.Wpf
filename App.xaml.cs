@@ -1,4 +1,1 @@
-namespace HanafudaAdvisor.Wpf
-{
-    public partial class App : System.Windows.Application { }
-}
+namespace HanafudaAdvisor.Wpf { public partial class App : System.Windows.Application { } }
