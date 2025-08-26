@@ -1,28 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Window x:Class="HanafudaAdvisor.Wpf.CardPickerDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="譛ｭ繧帝∈縺ｶ" Width="320" Height="200" WindowStartupLocation="CenterOwner">
-  <Grid Margin="12">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
+        Title="札を選ぶ" Width="320" Height="200" WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-      <TextBlock Text="譛・" VerticalAlignment="Center" Margin="0,0,6,0"/>
-      <ComboBox x:Name="MonthBox" Width="80"/>
-      <TextBlock Text="遞ｮ蛻･:" VerticalAlignment="Center" Margin="12,0,6,0"/>
-      <ComboBox x:Name="TypeBox" Width="120"/>
-    </StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+            <TextBlock Text="月:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox x:Name="MonthBox" Width="80"/>
+            <TextBlock Text="種別:" VerticalAlignment="Center" Margin="12,0,6,0"/>
+            <ComboBox x:Name="TypeBox" Width="120"/>
+        </StackPanel>
 
-    <Button Grid.Row="1" Content="蛟呵｣懊ｒ繝励Ξ繝薙Η繝ｼ" Click="OnPreview"/>
-    <ListBox Grid.Row="2" x:Name="PreviewList"/>
+        <Button Grid.Row="1" Content="候補をプレビュー" Click="OnPreview"/>
+        <ListBox Grid.Row="2" x:Name="PreviewList"/>
 
-    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-      <Button Content="OK" Width="80" Margin="0,0,6,0" Click="OnOk"/>
-      <Button Content="繧ｭ繝｣繝ｳ繧ｻ繝ｫ" Width="80" Click="OnCancel"/>
-    </StackPanel>
-  </Grid>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="OK" Width="80" Margin="0,0,6,0" Click="OnOk"/>
+            <Button Content="キャンセル" Width="80" Click="OnCancel"/>
+        </StackPanel>
+    </Grid>
 </Window>
