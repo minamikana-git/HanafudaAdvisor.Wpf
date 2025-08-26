@@ -39,6 +39,8 @@
                 <Button Content="相手の次手予測" Click="OnPredictOpp" Margin="0,0,6,0"/>
                 <Button Content="HUD表示" Click="OnShowHud"/>
                 <Button Content="画面から読取" Click="OnReadFromScreen"/>
+                <Button Content="ROIスナップ保存" Click="OnSaveRoiSnaps"/>
+                <Button Content="ドラッグで読取" Click="OnReadWithDrag" Margin="0,0,6,0"/>
             </StackPanel>
 
             <TextBlock Text="結果" FontWeight="Bold"/>

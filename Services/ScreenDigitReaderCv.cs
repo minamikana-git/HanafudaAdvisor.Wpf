@@ -1,13 +1,18 @@
-﻿using System;
+﻿// File: Services/ScreenDigitReaderCv.cs
+// OpenCvSharp を使った「数字バッジ」テンプレ一致リーダー（ウィンドウのクライアント領域をキャプチャ）
+// 依存: OpenCvSharp4 / OpenCvSharp4.runtime.win / OpenCvSharp4.Extensions
+
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
-// エイリアス（混同回避）
+// エイリアス（System.Drawing と OpenCvSharp の型衝突回避）
 using SDRect = System.Drawing.Rectangle;
 using SDSize = System.Drawing.Size;
 using CvSize = OpenCvSharp.Size;
@@ -17,7 +22,42 @@ namespace HanafudaAdvisor.Wpf.Services
 {
     public static class ScreenDigitReaderCv
     {
-        // ========== ROI ==========
+        // ==========================
+        // Win32: アクティブウィンドウのクライアント領域キャプチャ
+        // ==========================
+        [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)] private struct POINT { public int X, Y; }
+
+        private static class Win32
+        {
+            [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+            [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+            [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+        }
+
+        /// <summary>前面アクティブなウィンドウのクライアント領域を丸ごと取得（1600x900のウィンドウ想定）</summary>
+        private static Bitmap CaptureActiveWindowClient()
+        {
+            var h = Win32.GetForegroundWindow();
+            if (h == IntPtr.Zero) throw new InvalidOperationException("前面ウィンドウが取得できません。");
+
+            if (!Win32.GetClientRect(h, out var rc)) throw new InvalidOperationException("ClientRect取得失敗");
+
+            var lt = new POINT { X = rc.Left, Y = rc.Top };
+            var rb = new POINT { X = rc.Right, Y = rc.Bottom };
+            Win32.ClientToScreen(h, ref lt);
+            Win32.ClientToScreen(h, ref rb);
+
+            var rect = new SDRect(lt.X, lt.Y, Math.Max(1, rb.X - lt.X), Math.Max(1, rb.Y - lt.Y));
+            var bmp = new Bitmap(rect.Width, rect.Height, PixelFormat.Format32bppPArgb);
+            using var g = Graphics.FromImage(bmp);
+            g.CopyFromScreen(rect.Left, rect.Top, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
+            return bmp;
+        }
+
+        // ==========================
+        // ROI（0..1 の相対座標）
+        // ==========================
         public record RatioRect(double X, double Y, double W, double H)
         {
             public SDRect ToPixelRect(int w, int h)
@@ -29,45 +69,70 @@ namespace HanafudaAdvisor.Wpf.Services
             public List<RatioRect> HandDigits { get; } = new();
             public List<RatioRect> FieldDigits { get; } = new();
 
+            /// <summary>汎用の当たり（環境によりズレる場合あり）</summary>
             public static RoiConfig CreateDefault()
             {
                 var c = new RoiConfig();
                 for (int i = 0; i < 8; i++)
-                    c.HandDigits.Add(new RatioRect(0.30 + i * 0.055, 0.88, 0.035, 0.06));
+                    c.HandDigits.Add(new RatioRect(0.30 + i * 0.055, 0.88, 0.045, 0.075));
 
                 var starts = new (double x, double y)[] {
-                    (0.36,0.48),(0.46,0.48),(0.56,0.48),(0.66,0.48),
-                    (0.36,0.62),(0.46,0.62),(0.56,0.62),(0.66,0.62)
+                    (0.36,0.46),(0.46,0.46),(0.56,0.46),(0.66,0.46),
+                    (0.36,0.60),(0.46,0.60),(0.56,0.60),(0.66,0.60)
                 };
-                foreach (var s in starts) c.FieldDigits.Add(new RatioRect(s.x, s.y, 0.035, 0.06));
+                foreach (var s in starts) c.FieldDigits.Add(new RatioRect(s.x, s.y, 0.045, 0.075));
                 return c;
             }
         }
 
-        // ========== Public API ==========
+        /// <summary>1600x900 のウィンドウ用プリセット（数字バッジを広めに囲む）</summary>
+        public static RoiConfig CreateFor1600x900()
+        {
+            var c = new RoiConfig();
+
+            double handStartX = 0.295;
+            double stepX = 0.0615;
+            for (int i = 0; i < 8; i++)
+                c.HandDigits.Add(new RatioRect(handStartX + i * stepX, 0.865, 0.055, 0.095));
+
+            (double x, double y)[] pos =
+            {
+                (0.355,0.455),(0.455,0.455),(0.555,0.455),(0.655,0.455),
+                (0.355,0.600),(0.455,0.600),(0.555,0.600),(0.655,0.600),
+            };
+            foreach (var p in pos) c.FieldDigits.Add(new RatioRect(p.x, p.y, 0.055, 0.095));
+            return c;
+        }
+
+        // ==========================
+        // 公開 API
+        // ==========================
         public sealed record ReadResult(int[] HandMonths, int[] FieldMonths);
 
         public static ReadResult ReadMonths(RoiConfig? cfg = null)
         {
-            cfg ??= RoiConfig.CreateDefault();
-            using var bmp = CaptureScreen();
+            cfg ??= CreateFor1600x900();
+            using var bmp = CaptureActiveWindowClient();
             using var mat = BitmapConverter.ToMat(bmp);
 
             var templates = LoadTemplates("Assets/Digits");
             if (templates.Count == 0)
                 throw new InvalidOperationException(
-                    "テンプレがありません。SaveRoiSnaps を実行して Assets\\RoiSnaps の画像を 1.png〜12.png にリネームし、Assets\\Digits に置いてください。");
+                    "テンプレがありません。まず ROIスナップ保存 を実行し、" +
+                    "Assets\\RoiSnaps の画像を 1.png〜12.png にリネームして Assets\\Digits に置いてください。");
 
             int[] hand = cfg.HandDigits.Select(r => RecognizeOne(mat, r, templates)).ToArray();
             int[] field = cfg.FieldDigits.Select(r => RecognizeOne(mat, r, templates)).ToArray();
             return new ReadResult(hand, field);
         }
 
-        public static void SaveRoiSnaps(RoiConfig? cfg = null, string dir = "Assets/RoiSnaps")
+        public static void SaveRoiSnaps(RoiConfig? cfg = null, string? dir = null)
         {
-            cfg ??= RoiConfig.CreateDefault();
+            cfg ??= CreateFor1600x900();
+            dir ??= Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "RoiSnaps");
             Directory.CreateDirectory(dir);
-            using var bmp = CaptureScreen();
+
+            using var bmp = CaptureActiveWindowClient();
             using var big = BitmapConverter.ToMat(bmp);
 
             int i = 1;
@@ -77,6 +142,24 @@ namespace HanafudaAdvisor.Wpf.Services
                 Cv2.ImWrite(Path.Combine(dir, $"snap_{i:D2}.png"), crop);
                 i++;
             }
+        }
+
+        /// <summary>ROI の当たり確認用に矩形を描いた画像を保存</summary>
+        public static void SaveRoiPreview(RoiConfig? cfg, string outPath)
+        {
+            cfg ??= CreateFor1600x900();
+            using var bmp = CaptureActiveWindowClient();
+            using var mat = BitmapConverter.ToMat(bmp);
+
+            foreach (var r in cfg.HandDigits.Concat(cfg.FieldDigits))
+            {
+                var rc = new CvRect(
+                    (int)(r.X * mat.Width), (int)(r.Y * mat.Height),
+                    (int)(r.W * mat.Width), (int)(r.H * mat.Height));
+                rc = rc & new CvRect(0, 0, mat.Width, mat.Height);
+                Cv2.Rectangle(mat, rc, Scalar.Lime, 2);
+            }
+            Cv2.ImWrite(outPath, mat);
         }
 
         public static void ApplyToGameState(HanafudaAdvisor.Wpf.Models.GameState g, ReadResult r)
@@ -91,16 +174,9 @@ namespace HanafudaAdvisor.Wpf.Services
             { var c = PickUnused(m, used); g.Field.Add(c); used.Add(c); }
         }
 
-        // ========== Core ==========
-        private static System.Drawing.Bitmap CaptureScreen()
-        {
-            var b = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
-            var bmp = new System.Drawing.Bitmap(b.Width, b.Height, PixelFormat.Format32bppPArgb);
-            using var g = Graphics.FromImage(bmp);
-            g.CopyFromScreen(b.Left, b.Top, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
-            return bmp;
-        }
-
+        // ==========================
+        // 内部実装
+        // ==========================
         private static Dictionary<int, Mat> LoadTemplates(string dir)
         {
             var dict = new Dictionary<int, Mat>();
@@ -127,6 +203,7 @@ namespace HanafudaAdvisor.Wpf.Services
 
             var cut = new Mat(big, roi);
             var gray = new Mat();
+            // BGRA → Gray, ぼかし, Otsu二値化, 軽いオープンでノイズ除去
             Cv2.CvtColor(cut, gray, ColorConversionCodes.BGRA2GRAY);
             Cv2.GaussianBlur(gray, gray, new CvSize(3, 3), 0);
             Cv2.Threshold(gray, gray, 0, 255, ThresholdTypes.Otsu | ThresholdTypes.BinaryInv);
@@ -149,7 +226,7 @@ namespace HanafudaAdvisor.Wpf.Services
                 Cv2.MinMaxLoc(res, out _, out double maxVal, out _, out _);
                 if (maxVal > best) { best = maxVal; bestN = n; }
             }
-            return (best >= 0.62) ? bestN : -1;
+            return (best >= 0.62) ? bestN : -1; // 閾値は必要に応じて調整
         }
 
         private static Mat ResizeKeepWithin(Mat templ, CvSize maxSize)
@@ -169,5 +246,30 @@ namespace HanafudaAdvisor.Wpf.Services
             foreach (var c in cand) if (!already.Contains(c)) return c;
             return cand.First();
         }
+
+        // 選択された画面矩形をキャプチャ
+        public static Bitmap CaptureRect(SDRect r)
+        {
+            var bmp = new Bitmap(r.Width, r.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+            using var g = Graphics.FromImage(bmp);
+            g.CopyFromScreen(r.Left, r.Top, 0, 0, bmp.Size, System.Drawing.CopyPixelOperation.SourceCopy);
+            return bmp;
+        }
+
+        // Bitmap を直接読み取る
+        public static ReadResult ReadMonthsFromBitmap(Bitmap bmp, RoiConfig? cfg = null)
+        {
+            cfg ??= CreateFor1600x900();            // 16:9 基準のROI
+            using var mat = BitmapConverter.ToMat(bmp);
+            var templates = LoadTemplates("Assets/Digits");
+            if (templates.Count == 0)
+                throw new InvalidOperationException("Assets\\Digits に 1.png〜12.png を置いてください。");
+
+            int[] hand = cfg.HandDigits.Select(r => RecognizeOne(mat, r, templates)).ToArray();
+            int[] field = cfg.FieldDigits.Select(r => RecognizeOne(mat, r, templates)).ToArray();
+            return new ReadResult(hand, field);
+        }
     }
 }
+
+

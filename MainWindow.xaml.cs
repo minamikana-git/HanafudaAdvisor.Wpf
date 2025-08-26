@@ -1,7 +1,8 @@
 using HanafudaAdvisor.Wpf.Models;
 using HanafudaAdvisor.Wpf.Services;
-using System.Linq;
 using System.Windows;
+using SDRect = System.Drawing.Rectangle;
+
 
 namespace HanafudaAdvisor.Wpf
 {
@@ -89,17 +90,68 @@ namespace HanafudaAdvisor.Wpf
                     $"手札: {string.Join(",", r.HandMonths)}\n場: {string.Join(",", r.FieldMonths)}",
                     "読み取り結果");
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
                 System.Windows.MessageBox.Show("画面の読み取りに失敗: " + ex.Message);
             }
         }
 
+        // ★ROIスナップ保存
         private void OnSaveRoiSnaps(object sender, RoutedEventArgs e)
         {
-            ScreenDigitReaderCv.SaveRoiSnaps();
-            System.Windows.MessageBox.Show("Assets\\RoiSnaps に切り出しを保存しました。\n1.png～12.png に手動でリネームし、Assets\\Digits に移動してください。");
+            try
+            {
+                var outDir = @"E:\HanafudaAdvisor.Wpf\Assets\RoiSnaps"; // ★固定先
+                System.IO.Directory.CreateDirectory(outDir);
+
+                var cfg = HanafudaAdvisor.Wpf.Services.ScreenDigitReaderCv.RoiConfig.CreateDefault();
+                HanafudaAdvisor.Wpf.Services.ScreenDigitReaderCv.SaveRoiSnaps(cfg, outDir);
+
+                System.Diagnostics.Process.Start("explorer.exe", outDir);
+                System.Windows.MessageBox.Show($"ROIスナップを保存しました:\n{outDir}");
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show("ROIスナップ保存に失敗: " + ex.Message);
+            }
         }
 
+        private static SDRect AdjustToAspect(SDRect r, double target = 16.0 / 9.0)  // 16:9 に寄せる（中心維持）
+        {
+            double cur = (double)r.Width / r.Height;
+            if (Math.Abs(cur - target) < 0.02) return r; // ほぼ16:9ならそのまま
+            if (cur > target)  // 横長すぎ → 幅を詰める
+            {
+                int w = (int)Math.Round(r.Height * target);
+                int x = r.Left + (r.Width - w) / 2;
+                return new SDRect(x, r.Top, Math.Max(1, w), r.Height);
+            }
+            else               // 縦長すぎ → 高さを詰める
+            {
+                int h = (int)Math.Round(r.Width / target);
+                int y = r.Top + (r.Height - h) / 2;
+                return new SDRect(r.Left, Math.Max(0, y), r.Width, Math.Max(1, h));
+            }
+        }
+
+        private void OnReadWithDrag(object sender, RoutedEventArgs e)
+        {
+            // 1) ドラッグで矩形取得
+            var snip = new SnipOverlayWindow();
+            if (snip.ShowDialog() != true || snip.SelectedRect is null) return;
+
+            var rect = AdjustToAspect(snip.SelectedRect.Value); // 16:9 に寄せる
+
+            // 2) 矩形キャプチャ → 読み取り
+            using var bmp = ScreenDigitReaderCv.CaptureRect(rect);
+            var cfg = ScreenDigitReaderCv.CreateFor1600x900();
+            var r = ScreenDigitReaderCv.ReadMonthsFromBitmap(bmp, cfg);
+
+            // 3) 反映
+            ScreenDigitReaderCv.ApplyToGameState(_g, r);
+            RefreshLists();
+            System.Windows.MessageBox.Show($"手札: {string.Join(",", r.HandMonths)}\n場: {string.Join(",", r.FieldMonths)}",
+                            "ドラッグ読取");
+        }
     }
 }
