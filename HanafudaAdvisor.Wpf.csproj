@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+	<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
-
-		<!-- Windows 10 SDK 19041 に統一 -->
 		<TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
 		<TargetPlatformVersion>10.0.19041.0</TargetPlatformVersion>
 		<TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
