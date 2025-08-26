@@ -2,7 +2,7 @@
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
 
-		<!-- 19041 で統一 -->
+		<!-- Windows 10 SDK 19041 に統一 -->
 		<TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
 		<TargetPlatformVersion>10.0.19041.0</TargetPlatformVersion>
 		<TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
@@ -13,8 +13,13 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 
-		<!-- SDK の実在パス（H:）を明示 -->
+		<!-- SDK 実インストール先（あなたの環境に合わせて H: を指定） -->
 		<WindowsSdkDir>H:\Windows Kits\10\</WindowsSdkDir>
+
+		<!-- CsWinRT へ対象 SDK / winmd の場所 / 必要名前空間を明示 -->
+		<CsWinRTWindowsSdkVersion>10.0.19041.0</CsWinRTWindowsSdkVersion>
+		<CsWinRTWindowsMetadata>$(WindowsSdkDir)UnionMetadata\10.0.19041.0\</CsWinRTWindowsMetadata>
+		<CsWinRTIncludes>Windows.Globalization;Windows.Graphics.Imaging;Windows.Media.Ocr;Windows.Storage.Streams</CsWinRTIncludes>
 	</PropertyGroup>
 
 	<ItemGroup>
