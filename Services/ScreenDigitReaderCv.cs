@@ -7,15 +7,21 @@ using System.Linq;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
+// エイリアス（混同回避）
+using SDRect = System.Drawing.Rectangle;
+using SDSize = System.Drawing.Size;
+using CvSize = OpenCvSharp.Size;
+using CvRect = OpenCvSharp.Rect;
+
 namespace HanafudaAdvisor.Wpf.Services
 {
     public static class ScreenDigitReaderCv
     {
-        // 0..1 の相対矩形
+        // ========== ROI ==========
         public record RatioRect(double X, double Y, double W, double H)
         {
-            public Rectangle ToPixelRect(int w, int h)
-                => new((int)(X * w), (int)(Y * h), (int)(W * w), (int)(H * h));
+            public SDRect ToPixelRect(int w, int h)
+                => new SDRect((int)(X * w), (int)(Y * h), (int)(W * w), (int)(H * h));
         }
 
         public sealed class RoiConfig
@@ -26,7 +32,6 @@ namespace HanafudaAdvisor.Wpf.Services
             public static RoiConfig CreateDefault()
             {
                 var c = new RoiConfig();
-                // ★あなたの解像度に合わせて後で微調整（1920x1080ベースのあたり値）
                 for (int i = 0; i < 8; i++)
                     c.HandDigits.Add(new RatioRect(0.30 + i * 0.055, 0.88, 0.035, 0.06));
 
@@ -39,7 +44,7 @@ namespace HanafudaAdvisor.Wpf.Services
             }
         }
 
-        // ---- public API ------------------------------------------------------
+        // ========== Public API ==========
         public sealed record ReadResult(int[] HandMonths, int[] FieldMonths);
 
         public static ReadResult ReadMonths(RoiConfig? cfg = null)
@@ -48,12 +53,10 @@ namespace HanafudaAdvisor.Wpf.Services
             using var bmp = CaptureScreen();
             using var mat = BitmapConverter.ToMat(bmp);
 
-            // テンプレを読み込み
             var templates = LoadTemplates("Assets/Digits");
             if (templates.Count == 0)
                 throw new InvalidOperationException(
-                    "テンプレがありません。まず『画面から読取』横の ▼ から『ROIスナップ保存』を実行し、" +
-                    "Assets\\RoiSnaps に出力された画像を 1.png〜12.png にリネームして Assets\\Digits へ置いてください。");
+                    "テンプレがありません。SaveRoiSnaps を実行して Assets\\RoiSnaps の画像を 1.png〜12.png にリネームし、Assets\\Digits に置いてください。");
 
             int[] hand = cfg.HandDigits.Select(r => RecognizeOne(mat, r, templates)).ToArray();
             int[] field = cfg.FieldDigits.Select(r => RecognizeOne(mat, r, templates)).ToArray();
@@ -67,12 +70,12 @@ namespace HanafudaAdvisor.Wpf.Services
             using var bmp = CaptureScreen();
             using var big = BitmapConverter.ToMat(bmp);
 
-            int idx = 1;
+            int i = 1;
             foreach (var r in cfg.HandDigits.Concat(cfg.FieldDigits))
             {
                 using var crop = CropAndPrep(big, r);
-                Cv2.ImWrite(Path.Combine(dir, $"snap_{idx:D2}.png"), crop);
-                idx++;
+                Cv2.ImWrite(Path.Combine(dir, $"snap_{i:D2}.png"), crop);
+                i++;
             }
         }
 
@@ -88,7 +91,7 @@ namespace HanafudaAdvisor.Wpf.Services
             { var c = PickUnused(m, used); g.Field.Add(c); used.Add(c); }
         }
 
-        // ---- core ------------------------------------------------------------
+        // ========== Core ==========
         private static System.Drawing.Bitmap CaptureScreen()
         {
             var b = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
@@ -102,10 +105,10 @@ namespace HanafudaAdvisor.Wpf.Services
         {
             var dict = new Dictionary<int, Mat>();
             if (!Directory.Exists(dir)) return dict;
+
             foreach (var path in Directory.EnumerateFiles(dir, "*.png"))
             {
-                var name = Path.GetFileNameWithoutExtension(path);
-                if (int.TryParse(name, out int n) && 1 <= n && n <= 12)
+                if (int.TryParse(Path.GetFileNameWithoutExtension(path), out int n) && 1 <= n && n <= 12)
                 {
                     var m = Cv2.ImRead(path, ImreadModes.Grayscale);
                     Cv2.Threshold(m, m, 0, 255, ThresholdTypes.Otsu | ThresholdTypes.BinaryInv);
@@ -117,10 +120,54 @@ namespace HanafudaAdvisor.Wpf.Services
 
         private static Mat CropAndPrep(Mat big, RatioRect r)
         {
-            var roi = new Rect(
+            var roi = new CvRect(
                 (int)(r.X * big.Width), (int)(r.Y * big.Height),
                 (int)(r.W * big.Width), (int)(r.H * big.Height));
-            roi = roi & new Rect(0, 0, big.Width, big.Height);
+            roi = roi & new CvRect(0, 0, big.Width, big.Height);
+
             var cut = new Mat(big, roi);
-            var gray = new Mat(); Cv2.CvtColor(cut, gray, ColorConversionCodes.BGRA2GRAY);
-            // 明暗差を強調して数字のみを残す（ゲームUIに合わせて軽く開閉処理）
+            var gray = new Mat();
+            Cv2.CvtColor(cut, gray, ColorConversionCodes.BGRA2GRAY);
+            Cv2.GaussianBlur(gray, gray, new CvSize(3, 3), 0);
+            Cv2.Threshold(gray, gray, 0, 255, ThresholdTypes.Otsu | ThresholdTypes.BinaryInv);
+            Cv2.MorphologyEx(gray, gray, MorphTypes.Open, Cv2.GetStructuringElement(MorphShapes.Rect, new CvSize(2, 2)));
+            return gray;
+        }
+
+        private static int RecognizeOne(Mat screen, RatioRect r, Dictionary<int, Mat> templates)
+        {
+            using var probe = CropAndPrep(screen, r);
+
+            double best = 0; int bestN = -1;
+            foreach (var (n, templRaw) in templates)
+            {
+                using var templ = ResizeKeepWithin(templRaw, probe.Size());
+                if (templ.Empty()) continue;
+
+                using var res = new Mat();
+                Cv2.MatchTemplate(probe, templ, res, TemplateMatchModes.CCoeffNormed);
+                Cv2.MinMaxLoc(res, out _, out double maxVal, out _, out _);
+                if (maxVal > best) { best = maxVal; bestN = n; }
+            }
+            return (best >= 0.62) ? bestN : -1;
+        }
+
+        private static Mat ResizeKeepWithin(Mat templ, CvSize maxSize)
+        {
+            double s = Math.Min((double)maxSize.Width / templ.Width, (double)maxSize.Height / templ.Height);
+            if (s <= 0) return templ.Clone();
+            var dst = new Mat();
+            Cv2.Resize(templ, dst,
+                new CvSize(Math.Max(1, (int)(templ.Width * s)), Math.Max(1, (int)(templ.Height * s))),
+                0, 0, InterpolationFlags.Area);
+            return dst;
+        }
+
+        private static HanafudaAdvisor.Wpf.Models.Card PickUnused(int month, List<HanafudaAdvisor.Wpf.Models.Card> already)
+        {
+            var cand = HanafudaAdvisor.Wpf.Models.Deck.Full.Where(c => c.Month == month).ToList();
+            foreach (var c in cand) if (!already.Contains(c)) return c;
+            return cand.First();
+        }
+    }
+}
