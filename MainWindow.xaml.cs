@@ -1,6 +1,7 @@
+using HanafudaAdvisor.Wpf.Models;
+using HanafudaAdvisor.Wpf.Services;
 using System.Linq;
 using System.Windows;
-using HanafudaAdvisor.Wpf.Models;
 
 namespace HanafudaAdvisor.Wpf
 {
@@ -80,17 +81,24 @@ namespace HanafudaAdvisor.Wpf
         {
             try
             {
-                var res = HanafudaAdvisor.Wpf.Services.ScreenOcr.ReadMonths();
-                HanafudaAdvisor.Wpf.Services.ScreenOcr.ApplyToGameState(_g, res);
+                var cfg = ScreenDigitReaderCv.RoiConfig.CreateDefault();
+                var r = ScreenDigitReaderCv.ReadMonths(cfg);
+                ScreenDigitReaderCv.ApplyToGameState(_g, r);
                 RefreshLists();
-
-                ResultList.Items.Clear();
-                ResultList.Items.Add($"Read: Hand=[{string.Join(",", res.HandMonths)}] Field=[{string.Join(",", res.FieldMonths)}]");
+                System.Windows.MessageBox.Show(
+                    $"手札: {string.Join(",", r.HandMonths)}\n場: {string.Join(",", r.FieldMonths)}",
+                    "読み取り結果");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("画面の読み取りに失敗しました: " + ex.Message);
+                System.Windows.MessageBox.Show("画面の読み取りに失敗: " + ex.Message);
             }
+        }
+
+        private void OnSaveRoiSnaps(object sender, RoutedEventArgs e)
+        {
+            ScreenDigitReaderCv.SaveRoiSnaps();
+            System.Windows.MessageBox.Show("Assets\\RoiSnaps に切り出しを保存しました。\n1.png～12.png に手動でリネームし、Assets\\Digits に移動してください。");
         }
 
     }
