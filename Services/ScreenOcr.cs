@@ -1,4 +1,8 @@
-﻿using System;
+﻿#define DISABLE_WINRT   // ← WinRT OCR を使う時はこの行をコメントアウト
+
+#if !DISABLE_WINRT
+// ===== WinRT OCR を使うパス =====
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -28,16 +32,16 @@ namespace HanafudaAdvisor.Wpf.Services
 
             public static RoiConfig CreateDefault()
             {
-                // 初期値はスクショのレイアウト目安。後で調整推奨。
                 var cfg = new RoiConfig();
                 for (int i = 0; i < 8; i++)
                 {
                     double x = 0.30 + i * 0.055;
                     cfg.HandDigits.Add(new RatioRect(x, 0.88, 0.035, 0.06));
                 }
-                var starts = new (double x, double y)[]
-                { (0.36,0.48),(0.46,0.48),(0.56,0.48),(0.66,0.48),
-                  (0.36,0.62),(0.46,0.62),(0.56,0.62),(0.66,0.62) };
+                var starts = new (double x, double y)[] {
+                    (0.36,0.48),(0.46,0.48),(0.56,0.48),(0.66,0.48),
+                    (0.36,0.62),(0.46,0.62),(0.56,0.62),(0.66,0.62)
+                };
                 foreach (var s in starts) cfg.FieldDigits.Add(new RatioRect(s.x, s.y, 0.035, 0.06));
                 return cfg;
             }
@@ -105,7 +109,6 @@ namespace HanafudaAdvisor.Wpf.Services
             return new ReadResult(hand, field);
         }
 
-        // Apply to GameState (type is assigned by unused-first policy)
         public static void ApplyToGameState(HanafudaAdvisor.Wpf.Models.GameState g, ReadResult r)
         {
             g.MyHand.Clear();
@@ -132,3 +135,24 @@ namespace HanafudaAdvisor.Wpf.Services
         }
     }
 }
+#else
+// ===== WinRT を使わない（ビルド用ダミー）パス =====
+using System;
+
+namespace HanafudaAdvisor.Wpf.Services
+{
+    public sealed class ScreenOcr
+    {
+        public sealed record ReadResult(int[] HandMonths, int[] FieldMonths);
+
+        // 何も読まず空配列を返す（手動入力で使う）
+        public static ReadResult ReadMonths(object? _ = null)
+            => new ReadResult(Array.Empty<int>(), Array.Empty<int>());
+
+        public static void ApplyToGameState(HanafudaAdvisor.Wpf.Models.GameState g, ReadResult r)
+        {
+            // no-op
+        }
+    }
+}
+#endif
